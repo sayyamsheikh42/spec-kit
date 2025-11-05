@@ -1,8 +1,8 @@
 ---
 description: Examine the whole codebase and update the existing agent context file to document the project's current state, technology stack, and structure for existing projects that weren't developed using spec-kit.
 scripts:
-  sh: scripts/bash/analyze-codebase.sh --json
-  ps: scripts/powershell/analyze-codebase.ps1 -Json
+  sh: scripts/bash/check-prerequisites.sh --json
+  ps: scripts/powershell/check-prerequisites.ps1 -Json
 agent_scripts:
   sh: scripts/bash/update-agent-context.sh __AGENT__
   ps: scripts/powershell/update-agent-context.ps1 -AgentType __AGENT__
@@ -22,76 +22,133 @@ This command is designed for **existing projects** that were not originally deve
 
 **IMPORTANT**: This command does NOT create a feature specification or plan. It only analyzes and documents the existing state of the project.
 
-1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON output. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+## OUTPUT STRUCTURE
 
-   The script will analyze the codebase and return:
-   - `TECH_STACK`: Detected languages, frameworks, and dependencies
-   - `PROJECT_STRUCTURE`: Directory structure and organization
-   - `BUILD_TOOLS`: Build systems, package managers, test frameworks
-   - `DEPENDENCIES`: Key dependencies and versions
-   - `PATTERNS`: Architectural patterns detected
-   - `REPO_ROOT`: Repository root path
+Execute this workflow in 6 sequential steps:
 
-2. **Load existing context**: Read the current agent context file (if it exists):
-   - Claude: `CLAUDE.md`
-   - Gemini: `GEMINI.md`
-   - Copilot: `.github/copilot-instructions.md`
-   - Cursor: `.cursor/rules/specify-rules.mdc`
-   - Qwen: `QWEN.md`
-   - opencode/Codex/Amp/Q: `AGENTS.md`
-   - Windsurf: `.windsurf/rules/specify-rules.md`
-   - Kilo Code: `.kilocode/rules/specify-rules.md`
-   - Auggie: `.augment/rules/specify-rules.md`
-   - Roo: `.roo/rules/specify-rules.md`
-   - CodeBuddy: `CODEBUDDY.md`
+## Step 1: Setup Context
 
-   If no agent file exists, note that a new one will be created.
+Run `{SCRIPT}` from repo root and parse JSON output for REPO_ROOT and environment context. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-3. **Analyze codebase structure**:
-   - Examine project root directory structure
-   - Identify source code directories (`src/`, `lib/`, `app/`, `backend/`, `frontend/`, etc.)
-   - Identify configuration files (package.json, requirements.txt, Cargo.toml, etc.)
-   - Identify test directories and test frameworks
-   - Document the overall project organization
+## Step 2: Analyze Codebase
 
-4. **Extract technology information**:
-   - **Primary Language**: Detect from file extensions and configuration files
-   - **Frameworks**: Identify web frameworks, UI libraries, backend frameworks
-   - **Build Tools**: Package managers (npm, pip, cargo, maven, etc.), build systems
-   - **Testing**: Test frameworks and testing patterns
-   - **Database**: Database systems in use (if any)
-   - **Dependencies**: Key dependencies from package files
-   - **Deployment**: Docker, Kubernetes, CI/CD configurations (if present)
+Run the analysis script to gather facts about the codebase:
 
-5. **Detect architectural patterns**:
-   - Project type: Single application, monorepo, microservices, web app (frontend+backend), mobile app
-   - Code organization: MVC, layered architecture, component-based, etc.
-   - API patterns: REST, GraphQL, RPC (if applicable)
-   - State management: Redux, Zustand, Context API, etc. (if applicable)
+```bash
+scripts/bash/analyze-codebase.sh --json
+```
 
-6. **Create or update project understanding document**:
-   Create or update `.specify/project-understanding.md` with:
-   - **Project Overview**: Brief description of what the project does
-   - **Technology Stack**: Complete list of technologies detected
-   - **Project Structure**: Directory tree and organization
-   - **Build & Test**: How to build and test the project
-   - **Key Patterns**: Architectural and code patterns identified
-   - **Dependencies**: Major dependencies and their purposes
-   - **Development Workflow**: Inferred workflow from structure and configs
+Parse the JSON output to extract:
+- `TECH_STACK`: Detected languages, frameworks, and dependencies
+- `PROJECT_STRUCTURE`: Directory structure and organization
+- `BUILD_TOOLS`: Build systems, package managers, test frameworks
+- `TEST_FRAMEWORKS`: Testing frameworks detected
+- `DIRECTORY_STRUCTURE`: Top-level directory tree
+- `REPO_ROOT`: Repository root path
 
-7. **Update agent context file**:
-   - Run `{AGENT_SCRIPT}` to update the agent-specific context file
-   - The script will add the detected technology stack to "Active Technologies"
-   - Add a "Recent Changes" entry: "Initial spec-kit integration: Documented existing codebase"
-   - Preserve any existing manual additions between markers
+## Step 3: Load Existing Context
 
-8. **Generate summary report**:
-   Output a summary including:
-   - Technologies detected
-   - Project structure identified
-   - Agent context file location and status
-   - Project understanding document location
-   - Next steps: Suggest running `/speckit.constitution` to establish project principles
+Read the current agent context file (if it exists) based on the agent type:
+- Claude: `CLAUDE.md`
+- Gemini: `GEMINI.md`
+- Copilot: `.github/copilot-instructions.md`
+- Cursor: `.cursor/rules/specify-rules.mdc`
+- Qwen: `QWEN.md`
+- opencode/Codex/Amp/Q: `AGENTS.md`
+- Windsurf: `.windsurf/rules/specify-rules.md`
+- Kilo Code: `.kilocode/rules/specify-rules.md`
+- Auggie: `.augment/rules/specify-rules.md`
+- Roo: `.roo/rules/specify-rules.md`
+- CodeBuddy: `CODEBUDDY.md`
+
+If no agent file exists, note that a new one will be created.
+
+## Step 4: Create Project Understanding Document
+
+Call the creation script:
+
+```bash
+scripts/bash/create-project-understanding.sh --json
+```
+
+Parse JSON to get `path` and `template` name.
+
+Read the created file and fill ALL {{PLACEHOLDERS}} using the analysis data from Step 2:
+
+- `{{PROJECT_NAME}}` → Extract from README.md or repo name
+- `{{DATE}}` → Today's date (YYYY-MM-DD)
+- `{{PROJECT_OVERVIEW}}` → Brief description from README.md or inferred
+- `{{PROJECT_TYPE}}` → From PROJECT_STRUCTURE analysis
+- `{{PRIMARY_LANGUAGE}}` → From TECH_STACK.LANGUAGE
+- `{{LANGUAGE_VERSION}}` → If detectable from config files
+- `{{FRONTEND_FRAMEWORKS}}` → From TECH_STACK.FRAMEWORKS (filter frontend)
+- `{{BACKEND_FRAMEWORKS}}` → From TECH_STACK.FRAMEWORKS (filter backend)
+- `{{OTHER_FRAMEWORKS}}` → Other frameworks detected
+- `{{DATABASE}}` → From TECH_STACK.DATABASE
+- `{{BUILD_TOOLS}}` → From BUILD_TOOLS
+- `{{TEST_FRAMEWORKS}}` → From TEST_FRAMEWORKS
+- `{{DIRECTORY_STRUCTURE}}` → From DIRECTORY_STRUCTURE (formatted)
+- `{{SOURCE_DIRECTORY}}` → Detected source directory (src/, lib/, app/, etc.)
+- `{{TEST_DIRECTORY}}` → Detected test directory
+- `{{CONFIG_DIRECTORY}}` → Location of config files
+- `{{DOCS_DIRECTORY}}` → Location of documentation
+- `{{LAYOUT_PATTERN}}` → Inferred architectural pattern
+- `{{BUILD_COMMANDS}}` → Extracted from package.json scripts or Makefile
+- `{{TEST_COMMANDS}}` → Extracted from package.json scripts
+- `{{DEV_SETUP}}` → From README.md setup instructions
+- `{{CODE_ORGANIZATION}}` → Inferred pattern (MVC, layered, component-based, etc.)
+- `{{API_PATTERNS}}` → REST, GraphQL, RPC if detected
+- `{{STATE_MANAGEMENT}}` → Redux, Zustand, Context API if detected
+- `{{DATA_ACCESS_PATTERNS}}` → ORM, direct DB access, repository pattern
+- `{{RUNTIME_DEPENDENCIES}}` → Major dependencies from package files
+- `{{DEV_DEPENDENCIES}}` → Key dev dependencies
+- `{{CONFIG_FILES_LIST}}` → List of important config files
+- `{{VCS_WORKFLOW}}` → Git workflow patterns if detectable
+- `{{CODE_STYLE}}` → Linting/formatting tools detected
+- `{{DEPLOYMENT}}` → Docker, Kubernetes, CI/CD if present
+- `{{STRENGTHS}}` → Notable patterns that work well
+- `{{AREAS_FOR_IMPROVEMENT}}` → Potential issues or technical debt
+- `{{SPECIAL_CONSIDERATIONS}}` → Unique aspects of codebase
+
+Save the filled file.
+
+## Step 5: Update Agent Context File
+
+Run `{AGENT_SCRIPT}` to update the agent-specific context file:
+- Add detected technology stack to "Active Technologies"
+- Add "Recent Changes" entry: "Initial spec-kit integration: Documented existing codebase"
+- Preserve any existing manual additions between markers
+
+## Step 6: Report Completion
+
+Output summary:
+
+```
+✅ Project Understanding Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 Project Understanding: .specify/project-understanding.md
+🤖 Agent Context: [agent-specific file path]
+
+Technologies Detected:
+- Primary Language: [language]
+- Frameworks: [frameworks]
+- Build Tools: [tools]
+- Database: [database or "None"]
+
+Project Structure: [structure type]
+
+Next Steps:
+→ Review .specify/project-understanding.md for accuracy
+→ Run /speckit.constitution to establish project principles
+→ Start using spec-kit for new features with /speckit.specify
+
+Acceptance Criteria (PASS only if all true)
+- All {{PLACEHOLDERS}} in project-understanding.md are filled
+- Technology stack accurately reflects codebase
+- Agent context file updated with detected technologies
+- Project structure documented clearly
+```
 
 ## Analysis Guidelines
 

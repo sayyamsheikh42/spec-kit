@@ -1,0 +1,64 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g., 0.0.21)"
+        required: true
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Prepare version
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          
+          # Determine version (prefer manual input, else derive from tag)
+          if [[ -n "${VERSION_INPUT:-}" ]]; then
+            VER="${VERSION_INPUT}"
+          else
+            # From tag ref like refs/tags/v0.0.21 -> 0.0.21
+            VER="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ -z "$VER" ]]; then
+            echo "Version not provided and not a tag-triggered run" >&2
+            exit 1
+          fi
+          sed -i "s/^version = \".*\"/version = \"${VER}\"/" pyproject.toml
+
+      - name: Build
+        run: uv build
+
+      # Uncomment below if using PyPI trusted publishing (recommended)
+      # - name: Publish to PyPI (trusted publishing)
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     verbose: true
+
+      # If not using trusted publishing, uncomment below and set PYPI_API_TOKEN secret
+      - name: Publish with API token
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          uvx twine upload dist/*
+

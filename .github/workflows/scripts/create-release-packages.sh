@@ -40,6 +40,16 @@ rewrite_paths() {
 generate_commands() {
   local agent=$1 ext=$2 arg_format=$3 output_dir=$4 script_variant=$5
   mkdir -p "$output_dir"
+  
+  # Load command-rules.md for universal pre-execution rules
+  local command_rules_content=""
+  if [[ -f "memory/command-rules.md" ]]; then
+    command_rules_content=$(tr -d '\r' < "memory/command-rules.md")
+    echo "Loaded command-rules.md for universal pre-execution injection"
+  else
+    echo "Warning: memory/command-rules.md not found - commands will not have universal behavior rules" >&2
+  fi
+  
   for template in templates/commands/*.md; do
     [[ -f "$template" ]] || continue
     local name description script_command agent_script_command body
@@ -89,6 +99,11 @@ generate_commands() {
     # Apply other substitutions
     body=$(printf '%s\n' "$body" | sed "s/{ARGS}/$arg_format/g" | sed "s/__AGENT__/$agent/g" | rewrite_paths)
     
+    # Append command-rules.md content at the end (simpler, no frontmatter extraction needed)
+    if [[ -n $command_rules_content ]]; then
+      body=$(printf '%s\n\n---\n\n%s' "$body" "$command_rules_content")
+    fi
+    
     case $ext in
       toml)
         body=$(printf '%s\n' "$body" | sed 's/\\/\\\\/g')
@@ -99,6 +114,94 @@ generate_commands() {
         echo "$body" > "$output_dir/speckit.$name.$ext" ;;
     esac
   done
+}
+
+generate_agent_protocols() {
+  local agent=$1
+  local base_dir=$2
+  
+  # Load the base AGENTS.md content
+  local agents_content=""
+  if [[ -f "protocol-templates/AGENTS.md" ]]; then
+    agents_content=$(tr -d '\r' < "protocol-templates/AGENTS.md")
+  else
+    echo "Warning: protocol-templates/AGENTS.md not found - cannot generate agent rules" >&2
+    return 1
+  fi
+  
+  # Create agent-specific preface
+  local agent_name=""
+  case $agent in
+    claude) agent_name="Claude Code" ;;
+    gemini) agent_name="Gemini CLI" ;;
+    copilot) agent_name="GitHub Copilot" ;;
+    cursor-agent) agent_name="Cursor" ;;
+    qwen) agent_name="Qwen Code" ;;
+    opencode) agent_name="opencode" ;;
+    windsurf) agent_name="Windsurf" ;;
+    codex) agent_name="Codex CLI" ;;
+    kilocode) agent_name="Kilo Code" ;;
+    auggie) agent_name="Auggie CLI" ;;
+    roo) agent_name="Roo Code" ;;
+    codebuddy) agent_name="CodeBuddy" ;;
+    amp) agent_name="Amp" ;;
+    q) agent_name="Amazon Q Developer CLI" ;;
+    *) agent_name="$agent" ;;
+  esac
+  
+  local preface="# $agent_name Rules
+
+This file is generated during init for the selected agent.
+
+"
+  
+  # Generate the complete content
+  local full_content="${preface}${agents_content}"
+  
+  # Write to appropriate location based on agent
+  case $agent in
+    cursor-agent)
+      mkdir -p "$base_dir/.cursor/rules"
+      echo "$full_content" > "$base_dir/.cursor/rules/guidelines.md"
+      echo "Generated .cursor/rules/guidelines.md"
+      ;;
+    gemini)
+      echo "$full_content" > "$base_dir/GEMINI.md"
+      echo "Generated GEMINI.md"
+      ;;
+    qwen)
+      echo "$full_content" > "$base_dir/QWEN.md"
+      echo "Generated QWEN.md"
+      ;;
+    claude)
+      echo "$full_content" > "$base_dir/CLAUDE.md"
+      echo "Generated CLAUDE.md"
+      ;;
+    auggie)
+      echo "$full_content" > "$base_dir/AUGGIE.md"
+      echo "Generated AUGGIE.md"
+      ;;
+    q)
+      echo "$full_content" > "$base_dir/Q.md"
+      echo "Generated Q.md"
+      ;;
+    opencode)
+      echo "$full_content" > "$base_dir/opencode.md"
+      echo "Generated opencode.md"
+      ;;
+    codebuddy)
+      echo "$full_content" > "$base_dir/CODEBUDDY.md"
+      echo "Generated CODEBUDDY.md"
+      ;;
+    amp)
+      echo "$full_content" > "$base_dir/AMP.md"
+      echo "Generated AMP.md"
+      ;;
+  esac
+  
+  # Always create AGENTS.md in project root
+  echo "$agents_content" > "$base_dir/AGENTS.md"
+  echo "Generated AGENTS.md"
 }
 
 build_variant() {
@@ -112,6 +215,18 @@ build_variant() {
   mkdir -p "$SPEC_DIR"
   
   [[ -d memory ]] && { cp -r memory "$SPEC_DIR/"; echo "Copied memory -> .specify"; }
+  
+  # If constitutionplus.md exists, overwrite constitution.md in release package
+  if [[ -f memory/constitutionplus.md ]]; then
+    mkdir -p "$SPEC_DIR/memory"
+    cp memory/constitutionplus.md "$SPEC_DIR/memory/constitution.md"
+    echo "Injected constitutionplus.md as .specify/memory/constitution.md"
+    # Do not ship constitutionplus.md in the archive
+    rm -f "$SPEC_DIR/memory/constitutionplus.md" 2>/dev/null || true
+  fi
+  
+  # Remove command-rules.md from package (internal metadata, appended to commands during build)
+  rm -f "$SPEC_DIR/memory/command-rules.md" 2>/dev/null || true
   
   # Only copy the relevant script variant directory
   if [[ -d scripts ]]; then
@@ -131,6 +246,9 @@ build_variant() {
   fi
   
   [[ -d templates ]] && { mkdir -p "$SPEC_DIR/templates"; find templates -type f -not -path "templates/commands/*" -not -name "vscode-settings.json" -exec cp --parents {} "$SPEC_DIR"/ \; ; echo "Copied templates -> .specify/templates"; }
+  
+  # Generate agent-specific protocol files from protocol-templates
+  generate_agent_protocols "$agent" "$base_dir"
   
   # NOTE: We substitute {ARGS} internally. Outward tokens differ intentionally:
   #   * Markdown/prompt (claude, copilot, cursor-agent, opencode): $ARGUMENTS
