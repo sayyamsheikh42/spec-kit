@@ -42,10 +42,7 @@ source "$SCRIPT_DIR/common.sh"
 REPO_ROOT=$(get_repo_root)
 cd "$REPO_ROOT"
 
-# Initialize analysis results
-declare -A TECH_STACK
-declare -A BUILD_TOOLS
-declare -A DEPENDENCIES
+# Initialize analysis results (using regular variables for bash 3.2+ compatibility)
 PROJECT_STRUCTURE=""
 PATTERNS=""
 PRIMARY_LANGUAGE=""

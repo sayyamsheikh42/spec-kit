@@ -78,9 +78,8 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Get feature paths and validate branch
+# Get feature paths
 eval $(get_feature_paths)
-check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
 # If paths-only mode, output paths and exit (support JSON + paths-only combined)
 if $PATHS_ONLY; then
@@ -98,6 +97,9 @@ if $PATHS_ONLY; then
     fi
     exit 0
 fi
+
+# Validate branch (skip if paths-only mode)
+check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 
 # Validate required directories and files
 if [[ ! -d "$FEATURE_DIR" ]]; then
